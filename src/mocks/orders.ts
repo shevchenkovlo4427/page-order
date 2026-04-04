@@ -1,0 +1,164 @@
+import { Order } from '../types/order';
+
+export const orders: Order[] = [
+    {
+        id: 'ORD-001',
+        name: 'Ноутбук Apple MacBook Pro 14"',
+        client: 'ООО "ТехноСити"',
+        price: 159990,
+        date: '2024-03-15',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-002',
+        name: 'Смартфон Samsung Galaxy S24 Ultra',
+        client: 'ИП Иванов А.А.',
+        price: 129990,
+        date: '2024-03-14',
+        status: 'processing'
+    },
+    {
+        id: 'ORD-003',
+        name: 'Наушники Sony WH-1000XM5',
+        client: 'ООО "Электрон"',
+        price: 34990,
+        date: '2024-03-14',
+        status: 'pending'
+    },
+    {
+        id: 'ORD-004',
+        name: 'Монитор LG 27" 4K UHD',
+        client: 'ЗАО "Компьютерный мир"',
+        price: 45990,
+        date: '2024-03-13',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-005',
+        name: 'Клавиатура Logitech MX Keys',
+        client: 'ИП Петрова Е.В.',
+        price: 12990,
+        date: '2024-03-12',
+        status: 'cancelled'
+    },
+    {
+        id: 'ORD-006',
+        name: 'Мышь Logitech MX Master 3S',
+        client: 'ООО "ОфисПро"',
+        price: 8990,
+        date: '2024-03-11',
+        status: 'processing'
+    },
+    {
+        id: 'ORD-007',
+        name: 'SSD диск Samsung 1TB NVMe',
+        client: 'ИП Сидоров В.В.',
+        price: 11990,
+        date: '2024-03-10',
+        status: 'pending'
+    },
+    {
+        id: 'ORD-008',
+        name: 'Видеокарта NVIDIA RTX 4070',
+        client: 'ООО "Геймер"',
+        price: 69990,
+        date: '2024-03-09',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-009',
+        name: 'Процессор AMD Ryzen 7 7800X3D',
+        client: 'ИП Козлов Д.Д.',
+        price: 42990,
+        date: '2024-03-08',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-010',
+        name: 'Оперативная память Kingston 32GB DDR5',
+        client: 'ООО "КомпЛаб"',
+        price: 15990,
+        date: '2024-03-07',
+        status: 'processing'
+    },
+    {
+        id: 'ORD-011',
+        name: 'Блок питания Corsair 850W',
+        client: 'ИП Новиков А.С.',
+        price: 12990,
+        date: '2024-03-06',
+        status: 'pending'
+    },
+    {
+        id: 'ORD-012',
+        name: 'Корпус NZXT H9 Flow',
+        client: 'ООО "ПК-Маркет"',
+        price: 18990,
+        date: '2024-03-05',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-013',
+        name: 'Система охлаждения Arctic Liquid Freezer II',
+        client: 'ИП Соколова М.И.',
+        price: 9990,
+        date: '2024-03-04',
+        status: 'cancelled'
+    },
+    {
+        id: 'ORD-014',
+        name: 'Планшет iPad Pro 12.9"',
+        client: 'ООО "Цифровой мир"',
+        price: 119990,
+        date: '2024-03-03',
+        status: 'processing'
+    },
+    {
+        id: 'ORD-015',
+        name: 'Смарт-часы Apple Watch Series 9',
+        client: 'ИП Морозова Е.А.',
+        price: 45990,
+        date: '2024-03-02',
+        status: 'pending'
+    },
+    {
+        id: 'ORD-016',
+        name: 'Фитнес-браслет Xiaomi Mi Band 8',
+        client: 'ООО "СпортТех"',
+        price: 3990,
+        date: '2024-03-01',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-017',
+        name: 'Роутер TP-Link Archer AX73',
+        client: 'ИП Белов К.Н.',
+        price: 8990,
+        date: '2024-02-29',
+        status: 'processing'
+    },
+    {
+        id: 'ORD-018',
+        name: 'Веб-камера Logitech StreamCam',
+        client: 'ООО "Стример"',
+        price: 12990,
+        date: '2024-02-28',
+        status: 'completed'
+    },
+    {
+        id: 'ORD-019',
+        name: 'Микрофон HyperX QuadCast',
+        client: 'ИП Орлова А.В.',
+        price: 13990,
+        date: '2024-02-27',
+        status: 'pending'
+    },
+    {
+        id: 'ORD-020',
+        name: 'Кресло игровое Cougar Armor',
+        client: 'ООО "Киберспорт"',
+        price: 34990,
+        date: '2024-02-26',
+        status: 'completed'
+    }
+];
