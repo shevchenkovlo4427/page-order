@@ -1,255 +1,247 @@
-import React, { useState, useCallback } from 'react';
+/**
+ * Строка таблицы заказов.
+ * Поддерживает inline-редактирование через useOrderForm.
+ * Использует StatusChip и DeleteOrderDialog (устраняет дублирование).
+ * Мемоизирована для оптимизации рендера списка.
+ */
+
+import { memo, useState, useCallback } from 'react';
 import {
-    TableRow,
-    TableCell,
-    TextField,
-    Select,
-    MenuItem,
-    Chip,
-    Box,
-    IconButton,
-    Tooltip,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogContentText,
-    DialogActions,
-    Button
+  TableRow,
+  TableCell,
+  TextField,
+  Select,
+  MenuItem,
+  Box,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { DatePicker } from '@mui/x-date-pickers';
-import { Order, OrderStatus } from '../../types/order';
-import { useOrdersContext } from '../../context/OrdersContext';
-import { getStatusText, getStatusColor, formatPrice, formatDate } from '../../utils/orderUtils';
+
+import type { Order, OrderStatus, OrderFormValues } from '@/types/order';
+import { useOrdersContext } from '@/context/OrdersContext';
+import { useOrderForm } from '@/hooks/useOrderForm';
+import { StatusChip } from '@/components/common/StatusChip';
+import { DeleteOrderDialog } from '@/components/order-details/DeleteOrderDialog';
+import { formatPrice, formatDate } from '@/utils/orderUtils';
+import { ORDER_STATUS_LABELS } from '@/types/order';
 
 interface OrdersTableRowProps {
-    order: Order;
-    onRowClick: (id: string) => void;
+  order: Order;
+  onRowClick: (id: string) => void;
 }
 
-interface EditingState {
-    isEditing: boolean;
-    values: {
-        name: string;
-        client: string;
-        price: number;
-        date: string;
-        status: OrderStatus;
-    };
-}
+/** Список статусов для Select */
+const STATUS_OPTIONS = Object.entries(ORDER_STATUS_LABELS) as [keyof typeof ORDER_STATUS_LABELS, string][];
 
-export const OrdersTableRow: React.FC<OrdersTableRowProps> = ({ order, onRowClick }) => {
-    const { updateOrder, deleteOrder } = useOrdersContext();
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [editing, setEditing] = useState<EditingState>({
-        isEditing: false,
-        values: {
-            name: order.name,
-            client: order.client,
-            price: order.price,
-            date: order.date,
-            status: order.status,
-        }
-    });
+export const OrdersTableRow = memo<OrdersTableRowProps>(({ order, onRowClick }) => {
+  const { updateOrder, deleteOrder } = useOrdersContext();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-    const startEdit = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        setEditing({
-            isEditing: true,
-            values: {
-                name: order.name,
-                client: order.client,
-                price: order.price,
-                date: order.date,
-                status: order.status,
-            }
-        });
-    }, [order]);
+  const handleSave = useCallback(
+    (values: OrderFormValues) => {
+      updateOrder(order.id, values);
+    },
+    [updateOrder, order.id],
+  );
 
-    const cancelEdit = useCallback((e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        setEditing(prev => ({ ...prev, isEditing: false }));
-    }, []);
+  const {
+    editing,
+    errors,
+    startEdit,
+    cancelEdit,
+    saveEdit,
+    handleFieldChange,
+  } = useOrderForm({ order, onSave: handleSave });
 
-    const saveEdit = useCallback((e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        if (editing.isEditing) {
-            updateOrder(order.id, editing.values);
-        }
-        setEditing(prev => ({ ...prev, isEditing: false }));
-    }, [editing.isEditing, editing.values, order.id, updateOrder]);
+  const handleStartEdit = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      startEdit();
+    },
+    [startEdit],
+  );
 
-    const handleFieldChange = useCallback((field: keyof EditingState['values'], value: string | number | OrderStatus) => {
-        setEditing(prev => ({
-            ...prev,
-            values: { ...prev.values, [field]: value }
-        }));
-    }, []);
+  const handleCancelEdit = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      cancelEdit();
+    },
+    [cancelEdit],
+  );
 
-    const handleDeleteClick = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        setDeleteDialogOpen(true);
-    }, []);
+  const handleSaveEdit = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      saveEdit();
+    },
+    [saveEdit],
+  );
 
-    const handleDeleteConfirm = useCallback(() => {
-        deleteOrder(order.id);
-        setDeleteDialogOpen(false);
-    }, [deleteOrder, order.id]);
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteDialogOpen(true);
+  }, []);
 
-    const handleDeleteCancel = useCallback(() => {
-        setDeleteDialogOpen(false);
-    }, []);
+  const handleDeleteConfirm = useCallback(() => {
+    deleteOrder(order.id);
+    setDeleteDialogOpen(false);
+  }, [deleteOrder, order.id]);
 
-    const handleRowClick = () => {
-        if (!editing.isEditing) {
-            onRowClick(order.id);
-        }
-    };
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialogOpen(false);
+  }, []);
 
-    // форма редактирования
-    if (editing.isEditing) {
-        return (
-            <>
-                <TableRow sx={{ backgroundColor: '#fff9c4' }}>
-                    <TableCell>{order.id}</TableCell>
-
-                    {/* Название */}
-                    <TableCell>
-                        <TextField
-                            size="small"
-                            value={editing.values.name}
-                            onChange={(e) => handleFieldChange('name', e.target.value)}
-                            autoFocus
-                            fullWidth
-                        />
-                    </TableCell>
-
-                    {/* Клиент */}
-                    <TableCell>
-                        <TextField
-                            size="small"
-                            value={editing.values.client}
-                            onChange={(e) => handleFieldChange('client', e.target.value)}
-                            fullWidth
-                        />
-                    </TableCell>
-
-                    {/* Цена */}
-                    <TableCell>
-                        <TextField
-                            size="small"
-                            type="number"
-                            value={editing.values.price}
-                            onChange={(e) => handleFieldChange('price', parseInt(e.target.value) || 0)}
-                            sx={{ width: 120 }}
-                        />
-                    </TableCell>
-
-                    {/* Дата */}
-                    <TableCell>
-                        <DatePicker
-                            value={new Date(editing.values.date)}
-                            onChange={(newValue) => handleFieldChange('date', newValue?.toISOString().split('T')[0] || '')}
-                            slotProps={{ textField: { size: 'small', sx: { width: 150 } } }}
-                        />
-                    </TableCell>
-
-                    {/* Статус */}
-                    <TableCell>
-                        <Select
-                            size="small"
-                            value={editing.values.status}
-                            onChange={(e) => handleFieldChange('status', e.target.value as OrderStatus)}
-                            sx={{ width: 130 }}
-                        >
-                            <MenuItem value="pending">Ожидает</MenuItem>
-                            <MenuItem value="processing">В обработке</MenuItem>
-                            <MenuItem value="completed">Выполнен</MenuItem>
-                            <MenuItem value="cancelled">Отменён</MenuItem>
-                        </Select>
-                    </TableCell>
-
-                    {/* Действия */}
-                    <TableCell align="center">
-                        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                            <Tooltip title="Сохранить">
-                                <IconButton onClick={saveEdit} color="primary" size="small">
-                                    <CheckIcon />
-                                </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Отменить">
-                                <IconButton onClick={cancelEdit} color="error" size="small">
-                                    <CloseIcon />
-                                </IconButton>
-                            </Tooltip>
-                        </Box>
-                    </TableCell>
-                </TableRow>
-            </>
-        );
+  const handleRowClick = useCallback(() => {
+    if (!editing.isEditing) {
+      onRowClick(order.id);
     }
+  }, [editing.isEditing, onRowClick, order.id]);
 
-    // форма просмотра
+  // Режим редактирования
+  if (editing.isEditing) {
     return (
-        <>
-            <TableRow
-                hover
-                onClick={handleRowClick}
-                sx={{ cursor: 'pointer' }}
-            >
-                <TableCell>{order.id}</TableCell>
-                <TableCell>{order.name}</TableCell>
-                <TableCell>{order.client}</TableCell>
-                <TableCell>{formatPrice(order.price)}</TableCell>
-                <TableCell>{formatDate(order.date)}</TableCell>
-                <TableCell>
-                    <Chip
-                        label={getStatusText(order.status)}
-                        color={getStatusColor(order.status)}
-                        size="small"
-                    />
-                </TableCell>
+      <>
+        <TableRow sx={{ backgroundColor: '#fff9c4' }} role="row">
+          <TableCell>{order.id}</TableCell>
 
-                {/* Действия - кнопки редактирования и удаления */}
-                <TableCell align="center">
-                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                        <Tooltip title="Редактировать заказ">
-                            <IconButton onClick={startEdit} color="primary" size="small">
-                                <EditIcon />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Удалить заказ">
-                            <IconButton onClick={handleDeleteClick} color="error" size="small">
-                                <DeleteIcon />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-                </TableCell>
-            </TableRow>
+          <TableCell>
+            <TextField
+              size="small"
+              value={editing.values.name}
+              onChange={(e) => handleFieldChange('name', e.target.value)}
+              error={!!errors.name}
+              helperText={errors.name}
+              autoFocus
+              fullWidth
+            />
+          </TableCell>
 
-            {/* Диалог подтверждения удаления */}
-            <Dialog
-                open={deleteDialogOpen}
-                onClose={handleDeleteCancel}
-                onClick={(e) => e.stopPropagation()}
+          <TableCell>
+            <TextField
+              size="small"
+              value={editing.values.client}
+              onChange={(e) => handleFieldChange('client', e.target.value)}
+              error={!!errors.client}
+              helperText={errors.client}
+              fullWidth
+            />
+          </TableCell>
+
+          <TableCell>
+            <TextField
+              size="small"
+              type="number"
+              value={editing.values.price}
+              onChange={(e) => {
+                const num = parseFloat(e.target.value);
+                handleFieldChange('price', Number.isFinite(num) ? num : 0);
+              }}
+              error={!!errors.price}
+              helperText={errors.price}
+              sx={{ width: 120 }}
+            />
+          </TableCell>
+
+          <TableCell>
+            <DatePicker
+              value={new Date(editing.values.date)}
+              onChange={(newValue) =>
+                handleFieldChange('date', newValue?.toISOString().split('T')[0] ?? '')
+              }
+              slotProps={{ textField: { size: 'small', sx: { width: 150 } } }}
+            />
+          </TableCell>
+
+          <TableCell>
+            <Select
+              size="small"
+              value={editing.values.status}
+              onChange={(e) => handleFieldChange('status', e.target.value as OrderStatus)}
+              sx={{ width: 130 }}
             >
-                <DialogTitle>Подтверждение удаления</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        Вы действительно хотите удалить заказ <strong>{order.id} - {order.name}</strong>?
-                        Это действие нельзя отменить.
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleDeleteCancel}>Отмена</Button>
-                    <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-                        Удалить
-                    </Button>
-                </DialogActions>
-            </Dialog>
-        </>
+              {STATUS_OPTIONS.map(([value, label]) => (
+                <MenuItem key={value} value={value}>
+                  {label}
+                </MenuItem>
+              ))}
+            </Select>
+          </TableCell>
+
+          <TableCell align="center">
+            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+              <Tooltip title="Сохранить">
+                <IconButton onClick={handleSaveEdit} color="primary" size="small" aria-label="Сохранить">
+                  <CheckIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Отменить">
+                <IconButton onClick={handleCancelEdit} color="error" size="small" aria-label="Отменить">
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </TableCell>
+        </TableRow>
+      </>
     );
-};
+  }
+
+  // Режим просмотра
+  return (
+    <>
+      <TableRow
+        hover
+        onClick={handleRowClick}
+        sx={{ cursor: 'pointer' }}
+        role="row"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleRowClick();
+          }
+        }}
+      >
+        <TableCell>{order.id}</TableCell>
+        <TableCell>{order.name}</TableCell>
+        <TableCell>{order.client}</TableCell>
+        <TableCell>{formatPrice(order.price)}</TableCell>
+        <TableCell>{formatDate(order.date)}</TableCell>
+        <TableCell>
+          <StatusChip status={order.status} />
+        </TableCell>
+
+        <TableCell align="center">
+          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+            <Tooltip title="Редактировать заказ">
+              <IconButton onClick={handleStartEdit} color="primary" size="small" aria-label="Редактировать">
+                <EditIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Удалить заказ">
+              <IconButton onClick={handleDeleteClick} color="error" size="small" aria-label="Удалить">
+                <DeleteIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </TableCell>
+      </TableRow>
+
+      {/* Используем переиспользуемый DeleteOrderDialog вместо inline */}
+      <DeleteOrderDialog
+        open={deleteDialogOpen}
+        orderId={order.id}
+        orderName={order.name}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+    </>
+  );
+});
+
+OrdersTableRow.displayName = 'OrdersTableRow';

@@ -1,12 +1,29 @@
-import React from 'react';
+/**
+ * Компонент индикатора загрузки.
+ * Мемоизирован, т.к. не имеет изменяемых пропсов.
+ */
+
+import { memo } from 'react';
 import { CircularProgress, Box } from '@mui/material';
 
-export const LoadingSpinner = React.memo(() => {
-    return (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-            <CircularProgress />
-        </Box>
-    );
+interface LoadingSpinnerProps {
+  /** Сообщение для screen readers */
+  label?: string;
+}
+
+export const LoadingSpinner = memo<LoadingSpinnerProps>(({ label = 'Загрузка...' }) => {
+  return (
+    <Box
+      display="flex"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="200px"
+      role="status"
+      aria-label={label}
+    >
+      <CircularProgress />
+    </Box>
+  );
 });
 
 LoadingSpinner.displayName = 'LoadingSpinner';

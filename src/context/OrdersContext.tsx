@@ -1,148 +1,178 @@
-import React, { createContext, useContext, useCallback, useMemo, ReactNode, useState, useEffect } from 'react';
-import { Order } from '../types/order';
-import { useOrders } from '../hooks/useOrders';
+/**
+ * Контекст управления заказами.
+ * Отвечает за: загрузку, CRUD-операции, синхронизацию с localStorage,
+ * отслеживание изменений.
+ *
+ * Разделение ответственности:
+ * - Серверное состояние: React Query (useOrdersQuery)
+ * - Клиентское состояние: React Context (orders, originalOrders)
+ * - Персистенция: storageService (localStorage)
+ */
 
-interface OrdersContextType {
-    orders: Order[] | undefined;
-    originalOrders: Order[] | undefined;
-    isLoadingOrders: boolean;
-    errorOrders: Error | null;
-    hasChanges: boolean;
-    getOrderById: (id: string) => Order | undefined;
-    updateOrder: (id: string, updates: Partial<Order>) => void;
-    addOrder: (order: Omit<Order, 'id'>) => void;
-    deleteOrder: (id: string) => void;
-    saveChanges: () => void;
-    resetChanges: () => void;
-    refetchOrders: () => void;
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  type ReactNode,
+} from 'react';
+
+import type { Order, CreateOrderData, UpdateOrderData } from '@/types/order';
+import { useOrdersQuery } from '@/hooks/useOrders';
+import { saveOrders, loadOrders } from '@/services/storageService';
+import { areOrdersEqual, generateOrderId, cloneOrders } from '@/utils/orderUtils';
+
+/** Публичный интерфейс контекста заказов */
+interface OrdersContextValue {
+  /** Текущий список заказов (может содержать несохранённые изменения) */
+  orders: Order[];
+  /** Исходный список заказов (последнее сохранённое состояние) */
+  originalOrders: Order[];
+  /** Загрузка данных с сервера */
+  isLoading: boolean;
+  /** Ошибка загрузки */
+  error: Error | null;
+  /** Есть ли несохранённые изменения */
+  hasChanges: boolean;
+  /** Получить заказ по ID */
+  getOrderById: (id: string) => Order | undefined;
+  /** Обновить заказ (частично) */
+  updateOrder: (id: string, updates: UpdateOrderData) => void;
+  /** Добавить новый заказ */
+  addOrder: (data: CreateOrderData) => void;
+  /** Удалить заказ */
+  deleteOrder: (id: string) => void;
+  /** Сохранить все изменения в localStorage */
+  saveChanges: () => void;
+  /** Откатить все изменения к последнему сохранённому состоянию */
+  resetChanges: () => void;
+  /** Повторно загрузить данные с сервера */
+  refetchOrders: () => void;
 }
 
-const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
+const OrdersContext = createContext<OrdersContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'orders_data';
+/** Пустое начальное состояние для orders */
+const EMPTY_ORDERS: Order[] = [];
 
-const saveToLocalStorage = (orders: Order[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-};
+interface OrdersProviderProps {
+  children: ReactNode;
+}
 
-const loadFromLocalStorage = (): Order[] | null => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        return JSON.parse(saved);
+export const OrdersProvider = ({ children }: OrdersProviderProps) => {
+  const { data: fetchedOrders, isLoading, error, refetch: refetchOrders } = useOrdersQuery();
+
+  const [orders, setOrders] = useState<Order[]>(EMPTY_ORDERS);
+  const [originalOrders, setOriginalOrders] = useState<Order[]>(EMPTY_ORDERS);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Инициализация данных: приоритет localStorage, fallback — серверные данные
+  useEffect(() => {
+    if (isInitialized) return;
+
+    // Сначала проверяем localStorage
+    const savedOrders = loadOrders();
+    if (savedOrders && savedOrders.length > 0) {
+      setOrders(savedOrders);
+      setOriginalOrders(cloneOrders(savedOrders));
+      setIsInitialized(true);
+      return;
     }
-    return null;
-};
 
-const generateOrderId = (orders: Order[]): string => {
-    const maxId = orders.reduce((max, order) => {
-        const num = parseInt(order.id.split('-')[1]);
-        return num > max ? num : max;
-    }, 0);
-    const newNum = maxId + 1;
-    return `ORD-${newNum.toString().padStart(3, '0')}`;
-};
+    // Если localStorage пуст — используем данные с сервера
+    if (fetchedOrders) {
+      setOrders(fetchedOrders);
+      setOriginalOrders(cloneOrders(fetchedOrders));
+      setIsInitialized(true);
+    }
+  }, [fetchedOrders, isInitialized]);
 
-export const OrdersProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { data: fetchedOrders, isLoading: isLoadingOrders, error: errorOrders, refetch: refetchOrders } = useOrders();
-    const [orders, setOrders] = useState<Order[] | undefined>(undefined);
-    const [originalOrders, setOriginalOrders] = useState<Order[] | undefined>(undefined);
+  // Отслеживание наличия изменений (побитовое сравнение вместо JSON.stringify)
+  const hasChanges = useMemo(() => {
+    return !areOrdersEqual(orders, originalOrders);
+  }, [orders, originalOrders]);
 
-    useEffect(() => {
-        const savedOrders = loadFromLocalStorage();
+  const getOrderById = useCallback(
+    (id: string): Order | undefined => {
+      return orders.find((order) => order.id === id);
+    },
+    [orders],
+  );
 
-        if (savedOrders && savedOrders.length > 0) {
-            setOrders(savedOrders);
-            setOriginalOrders(JSON.parse(JSON.stringify(savedOrders)));
-            console.log('из localStorage:', savedOrders);
-        } else if (fetchedOrders) {
-            setOrders(fetchedOrders);
-            setOriginalOrders(JSON.parse(JSON.stringify(fetchedOrders)));
-            console.log('из mocks:', fetchedOrders);
-        }
-    }, [fetchedOrders]);
-
-    const hasChanges = useMemo(() => {
-        if (!orders || !originalOrders) return false;
-        return JSON.stringify(orders) !== JSON.stringify(originalOrders);
-    }, [orders, originalOrders]);
-
-    const getOrderById = useCallback((id: string): Order | undefined => {
-        return orders?.find(order => order.id === id);
-    }, [orders]);
-
-    const updateOrder = useCallback((id: string, updates: Partial<Order>) => {
-        setOrders(prevOrders => {
-            if (!prevOrders) return prevOrders;
-            return prevOrders.map(order =>
-                order.id === id ? { ...order, ...updates } : order
-            );
-        });
-    }, []);
-
-    const addOrder = useCallback((newOrder: Omit<Order, 'id'>) => {
-        setOrders(prevOrders => {
-            if (!prevOrders) return [{
-                id: 'ORD-001',
-                ...newOrder
-            }];
-
-            const newId = generateOrderId(prevOrders);
-            const orderWithId: Order = {
-                id: newId,
-                ...newOrder
-            };
-
-            return [...prevOrders, orderWithId];
-        });
-    }, []);
-
-    const deleteOrder = useCallback((id: string) => {
-        setOrders(prevOrders => {
-            if (!prevOrders) return prevOrders;
-            return prevOrders.filter(order => order.id !== id);
-        });
-    }, []);
-
-    const saveChanges = useCallback(() => {
-        if (orders) {
-            saveToLocalStorage(orders);
-            setOriginalOrders(JSON.parse(JSON.stringify(orders)));
-            console.log('изменился localStorage вот так', orders);
-        }
-    }, [orders]);
-
-    const resetChanges = useCallback(() => {
-        if (originalOrders) {
-            setOrders(JSON.parse(JSON.stringify(originalOrders)));
-        }
-    }, [originalOrders]);
-
-    const value = useMemo(() => ({
-        orders,
-        originalOrders,
-        isLoadingOrders,
-        errorOrders,
-        hasChanges,
-        getOrderById,
-        updateOrder,
-        addOrder,
-        deleteOrder,
-        saveChanges,
-        resetChanges,
-        refetchOrders,
-    }), [orders, originalOrders, isLoadingOrders, errorOrders, hasChanges, getOrderById, updateOrder, addOrder, deleteOrder, saveChanges, resetChanges, refetchOrders]);
-
-    return (
-        <OrdersContext.Provider value={value}>
-            {children}
-        </OrdersContext.Provider>
+  const updateOrder = useCallback((id: string, updates: UpdateOrderData) => {
+    setOrders((prev) =>
+      prev.map((order) => (order.id === id ? { ...order, ...updates } : order)),
     );
+  }, []);
+
+  const addOrder = useCallback((data: CreateOrderData) => {
+    setOrders((prev) => {
+      const newId = generateOrderId(prev);
+      const newOrder: Order = { id: newId, ...data };
+      return [...prev, newOrder];
+    });
+  }, []);
+
+  const deleteOrder = useCallback((id: string) => {
+    setOrders((prev) => prev.filter((order) => order.id !== id));
+  }, []);
+
+  const saveChanges = useCallback(() => {
+    saveOrders(orders);
+    setOriginalOrders(cloneOrders(orders));
+  }, [orders]);
+
+  const resetChanges = useCallback(() => {
+    setOrders(cloneOrders(originalOrders));
+  }, [originalOrders]);
+
+  const value = useMemo<OrdersContextValue>(
+    () => ({
+      orders,
+      originalOrders,
+      isLoading,
+      error,
+      hasChanges,
+      getOrderById,
+      updateOrder,
+      addOrder,
+      deleteOrder,
+      saveChanges,
+      resetChanges,
+      refetchOrders,
+    }),
+    [
+      orders,
+      originalOrders,
+      isLoading,
+      error,
+      hasChanges,
+      getOrderById,
+      updateOrder,
+      addOrder,
+      deleteOrder,
+      saveChanges,
+      resetChanges,
+      refetchOrders,
+    ],
+  );
+
+  return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>;
 };
 
-export const useOrdersContext = () => {
-    const context = useContext(OrdersContext);
-    if (context === undefined) {
-        throw new Error('useOrdersContext необходимо использовать внутри OrdersProvider');
-    }
-    return context;
+/**
+ * Хук для доступа к контексту заказов.
+ * Бросает ошибку, если использован вне OrdersProvider.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export const useOrdersContext = (): OrdersContextValue => {
+  const context = useContext(OrdersContext);
+
+  if (context === undefined) {
+    throw new Error('useOrdersContext must be used within an OrdersProvider');
+  }
+
+  return context;
 };
